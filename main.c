@@ -25,8 +25,8 @@ int main() {
         Get_New_Table(&table);
     } else {// есть файл с таблицей
         Get_Old_Table(&table);
+        fclose( table.fd);
     }
-    fclose( table.fd);
     int rc;
     rc = dialog(msgs, NMgsgs);
     while (rc) {
@@ -35,13 +35,14 @@ int main() {
         }
         rc = dialog(msgs, NMgsgs);
     }
+    table.fd = fopen(s, "w+b");
+    load(&table);// обновление файла
+
     for (int i = 0; i < table.msize1; i++) {
         if (table.ks1[i].key != 0) {
             delete(&table, table.ks1[i].key, table.ks1[i].info->key2);
         }
     }
-    table.fd = fopen(s, "w+b");
-    load(&table);// обновление файла
     free(table.ks1);
     free(table.ks2);
     fclose(table.fd);
