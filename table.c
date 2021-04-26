@@ -4,7 +4,83 @@
 #include "get.h"
 #include "table.h"
 #include <stdlib.h>
+#include <stdio.h>
 
+void *Get_New_Table(Table *table) {
+    int size1, size2, len;
+    printf("Enter max size of ks1 table\n");
+    Get_Int(&size1);
+    printf("Enter max size of ks2 table\n");
+    Get_Int(&size2);
+    printf("Length of key2\n");
+    Get_Int(&len);
+    table->ks1 = calloc(sizeof(KeySpace1), size1);
+    table->ks2 = (KeySpace2 **) calloc(sizeof(KeySpace2 *), size2);
+    table->msize1 = size1;
+    table->csize1 = 0;
+    table->msize2 = size2;
+    table->strl = len;
+    for (int i = 0; i < size1; i++) {
+        table->ks1[i].key = 0;
+    }
+    return 0;
+}
+
+void *Get_Old_Table(Table *table) {
+    int size1, size2, len,csize,k1,par,realise,len_k2,len_info;
+    char*k2=NULL, *info = NULL;
+    fseek(table->fd, 0, SEEK_SET);
+    fread(&size1,sizeof(int),1,table->fd);
+    fread(&csize,sizeof(int),1,table->fd);
+    fread(&size2,sizeof(int),1,table->fd);
+    fread(&len,sizeof(int),1,table->fd);
+    table->ks1 = calloc(sizeof(KeySpace1), size1);
+    table->ks2 = (KeySpace2 **) calloc(sizeof(KeySpace2 *), size2);
+    table->msize1 = size1;
+    table->csize1 = 0;
+    table->msize2 = size2;
+    table->strl = len;
+    for(int i=0; i<csize;i++){
+        fread(&k1,sizeof(int),1,table->fd);
+        fread(&par,sizeof(int),1,table->fd);
+        fread(&realise,sizeof(int),1,table->fd);
+        fread(&len_k2,sizeof(int),1,table->fd);
+        fread(k2,sizeof(char),len_k2,table->fd);
+        fread(&len_info,sizeof(int),1,table->fd);
+        fread(info,sizeof(char),len_info,table->fd);
+        insert(table,k1,par,k2,info);
+    }
+    return 0;
+}
+void *load(Table *ptab){
+    //long int key2_offset,info_offset, tmp_offset;
+    int key2_len,info_len;
+    fseek(ptab->fd, 0, SEEK_END);
+    fwrite(&ptab->msize1,sizeof (int),1,ptab->fd); // макс размер первого
+    fwrite(&ptab->csize1,sizeof (int),1,ptab->fd); // реальный размер первого
+    fwrite(&ptab->msize2,sizeof (int),1,ptab->fd); // размер второго
+    fwrite(&ptab->strl,sizeof (int),1,ptab->fd); // макс длина строки второго
+    for(int i=0;i<ptab->msize1;i++){
+        if(ptab->ks1[i].key!=0) {
+            //tmp_offset = ftell(ptab->fd);
+            fseek(ptab->fd, 0, SEEK_END);
+            fwrite(&ptab->ks1[i].key, sizeof(int), 1, ptab->fd);// первый ключ
+            fwrite(&ptab->ks1[i].par, sizeof(int), 1, ptab->fd);// родительский ключ
+            fwrite(&ptab->ks1[i].info->realise, sizeof(int), 1, ptab->fd); // версию элемента
+            //key2_offset = ftell(ptab->fd)+12;
+            key2_len=strlen(ptab->ks1[i].info->key2)+1;
+            //fwrite(&key2_offset, sizeof(long int), 1, ptab->fd);// смещение в файле ключа 2
+            fwrite(&key2_len, sizeof(int), 1, ptab->fd); // длина второго ключа
+            fwrite(&ptab->ks1[i].info->key2, sizeof(char), key2_len, ptab->fd); //второй ключ
+            //info_offset=ftell(ptab->fd)+12;
+            info_len=strlen(ptab->ks1[i].info->inf)+1;
+            //fwrite(&info_offset, sizeof(long int), 1, ptab->fd);// смещение в файле информации
+            fwrite(&info_len, sizeof(int), 1, ptab->fd); // длина информации
+            fwrite(&ptab->ks1[i].info->inf, sizeof(char), info_len, ptab->fd);// информация
+        }
+    }
+    return 0;
+}
 Item *find(Table *t, int k1, char *k2) {
     int i;
     for (i = 0; i < t->msize1; i++) {
@@ -121,32 +197,28 @@ int delete(Table *t, int k1, char *k2) {
     KeySpace2 *del_ks2;
     del_ks2 = item->ks2;
     // удаление из второго пространства ключей
-    if (del_ks2->next==NULL){
-        if(del_ks2->previous==NULL){ //единственный элемент
+    if (del_ks2->next == NULL) {
+        if (del_ks2->previous == NULL) { //единственный элемент
             int h = Hesh(t, k2);
-            t->ks2[h]=NULL;
+            t->ks2[h] = NULL;
+        } else {// последний элемент
+            del_ks2->previous->next = NULL;
         }
-        else{// последний элемент
-            del_ks2->previous->next=NULL;
-        }
-    }
-    else
-    {
-        if (del_ks2->previous==NULL){ //первый элемент
+    } else {
+        if (del_ks2->previous == NULL) { //первый элемент
             int h = Hesh(t, k2);
-            del_ks2->next->previous=NULL;
-            t->ks2[h]=del_ks2->next;
-        }
-        else{ // не крайний элемент
+            del_ks2->next->previous = NULL;
+            t->ks2[h] = del_ks2->next;
+        } else { // не крайний элемент
             del_ks2->previous->next = del_ks2->next;
-            del_ks2->next->previous=del_ks2->previous;
+            del_ks2->next->previous = del_ks2->previous;
 
         }
     }
     //удаление из первого
     t->ks1[i].key = 0;
-    t->ks1[i].info=NULL;
-    t->ks1[i].par=0;
+    t->ks1[i].info = NULL;
+    t->ks1[i].par = 0;
     t->csize1 = t->csize1 - 1;
     // замена родительских ключей на нули
     for (int i = 0; i < t->msize1; i++) {
