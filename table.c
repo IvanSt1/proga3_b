@@ -28,7 +28,7 @@ void *Get_New_Table(Table *table) {
 
 void *Get_Old_Table(Table *table) {
     int size1, size2, len,csize,k1,par,realise,len_k2,len_info;
-    char*k2=NULL, *info = NULL;
+    char *k2, *info;
     fseek(table->fd, 0, SEEK_SET);
     fread(&size1,sizeof(int),1,table->fd);
     fread(&csize,sizeof(int),1,table->fd);
@@ -45,9 +45,9 @@ void *Get_Old_Table(Table *table) {
         fread(&par,sizeof(int),1,table->fd);
         fread(&realise,sizeof(int),1,table->fd);
         fread(&len_k2,sizeof(int),1,table->fd);
-        fread(k2,sizeof(char),len_k2,table->fd);
+        fread(&k2,sizeof(char),len_k2,table->fd);
         fread(&len_info,sizeof(int),1,table->fd);
-        fread(info,sizeof(char),len_info,table->fd);
+        fread(&info,sizeof(char),len_info,table->fd);
         insert(table,k1,par,k2,info);
     }
     return 0;
@@ -55,7 +55,7 @@ void *Get_Old_Table(Table *table) {
 void *load(Table *ptab){
     //long int key2_offset,info_offset, tmp_offset;
     int key2_len,info_len;
-    fseek(ptab->fd, 0, SEEK_END);
+    fseek(ptab->fd, 0, SEEK_SET);
     fwrite(&ptab->msize1,sizeof (int),1,ptab->fd); // макс размер первого
     fwrite(&ptab->csize1,sizeof (int),1,ptab->fd); // реальный размер первого
     fwrite(&ptab->msize2,sizeof (int),1,ptab->fd); // размер второго
@@ -63,7 +63,7 @@ void *load(Table *ptab){
     for(int i=0;i<ptab->msize1;i++){
         if(ptab->ks1[i].key!=0) {
             //tmp_offset = ftell(ptab->fd);
-            fseek(ptab->fd, 0, SEEK_END);
+
             fwrite(&ptab->ks1[i].key, sizeof(int), 1, ptab->fd);// первый ключ
             fwrite(&ptab->ks1[i].par, sizeof(int), 1, ptab->fd);// родительский ключ
             fwrite(&ptab->ks1[i].info->realise, sizeof(int), 1, ptab->fd); // версию элемента
