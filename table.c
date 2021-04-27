@@ -45,10 +45,10 @@ void *Get_Old_Table(Table *table) {
         fread(&par,sizeof(int),1,table->fd);
         fread(&realise,sizeof(int),1,table->fd);
         fread(&len_k2,sizeof(int),1,table->fd);
-        fread(&k2,sizeof(char),len_k2,table->fd);
+        fread(k2,sizeof(char*),len_k2,table->fd);
         fread(&len_info,sizeof(int),1,table->fd);
-        fread(&info,sizeof(char),len_info,table->fd);
-        insert(table,k1,par,k2,info);
+        fread(&info,sizeof(char*),len_info,table->fd);
+       // insert(table,k1,par,k2,info);
     }
     return 0;
 }
