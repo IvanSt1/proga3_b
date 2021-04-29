@@ -28,6 +28,7 @@ void *Get_New_Table(Table *table) {
 
 void *Get_Old_Table(Table *table) {
     int size1, size2, len,csize,k1,par,realise,len_k2,len_info;
+    long int key2_offset,info_offset, tmp_offset;
     char *k2, *info;
     fseek(table->fd, 0, SEEK_SET);
     fread(&size1,sizeof(int),1,table->fd);
@@ -44,39 +45,60 @@ void *Get_Old_Table(Table *table) {
         fread(&k1,sizeof(int),1,table->fd);
         fread(&par,sizeof(int),1,table->fd);
         fread(&realise,sizeof(int),1,table->fd);
+        fread(&key2_offset,sizeof(long int),1,table->fd);
         fread(&len_k2,sizeof(int),1,table->fd);
-        fread(k2,sizeof(char*),len_k2,table->fd);
+        tmp_offset=ftell(table->fd);
+        fseek(table->fd, key2_offset, SEEK_SET);
+        fread(&k2,sizeof(char),len_k2,table->fd);
+        fseek(table->fd, tmp_offset, SEEK_SET);
+
+        fread(&info_offset,sizeof(long int),1,table->fd);
         fread(&len_info,sizeof(int),1,table->fd);
-        fread(&info,sizeof(char*),len_info,table->fd);
-       // insert(table,k1,par,k2,info);
+        tmp_offset=ftell(table->fd);
+        fseek(table->fd, info_offset, SEEK_SET);
+        fread(&info,sizeof(char),len_info,table->fd);
+        fseek(table->fd, tmp_offset, SEEK_SET);
+        insert(table,k1,par,k2,info);
     }
     return 0;
 }
 void *load(Table *ptab){
-    //long int key2_offset,info_offset, tmp_offset;
+    long int key2_offset,info_offset, tmp_offset;
     int key2_len,info_len;
     fseek(ptab->fd, 0, SEEK_SET);
     fwrite(&ptab->msize1,sizeof (int),1,ptab->fd); // макс размер первого
     fwrite(&ptab->csize1,sizeof (int),1,ptab->fd); // реальный размер первого
     fwrite(&ptab->msize2,sizeof (int),1,ptab->fd); // размер второго
-    fwrite(&ptab->strl,sizeof (int),1,ptab->fd); // макс длина строки второго
+    fwrite(&ptab->strl,sizeof (int),1,ptab->fd);// макс длина строки второго
+    int n=ptab->csize1;
+    tmp_offset = ftell(ptab->fd);
+    int k=0;
+    for (int i=0; i<n*7;i++){
+        fwrite(&k,sizeof(int),1,ptab->fd);
+    }
     for(int i=0;i<ptab->msize1;i++){
         if(ptab->ks1[i].key!=0) {
-            //tmp_offset = ftell(ptab->fd);
-
+            fseek(ptab->fd, tmp_offset, SEEK_SET);
             fwrite(&ptab->ks1[i].key, sizeof(int), 1, ptab->fd);// первый ключ
             fwrite(&ptab->ks1[i].par, sizeof(int), 1, ptab->fd);// родительский ключ
-            fwrite(&ptab->ks1[i].info->realise, sizeof(int), 1, ptab->fd); // версию элемента
-            //key2_offset = ftell(ptab->fd)+12;
+            fwrite(&ptab->ks1[i].info->realise, sizeof(int), 1, ptab->fd);// версию элемента
+            tmp_offset = ftell(ptab->fd);
+            fseek(ptab->fd, 0, SEEK_END);
+            key2_offset = ftell(ptab->fd);
             key2_len=strlen(ptab->ks1[i].info->key2)+1;
-            //fwrite(&key2_offset, sizeof(long int), 1, ptab->fd);// смещение в файле ключа 2
-            fwrite(&key2_len, sizeof(int), 1, ptab->fd); // длина второго ключа
             fwrite(&ptab->ks1[i].info->key2, sizeof(char), key2_len, ptab->fd); //второй ключ
-            //info_offset=ftell(ptab->fd)+12;
-            info_len=strlen(ptab->ks1[i].info->inf)+1;
-            //fwrite(&info_offset, sizeof(long int), 1, ptab->fd);// смещение в файле информации
-            fwrite(&info_len, sizeof(int), 1, ptab->fd); // длина информации
-            fwrite(&ptab->ks1[i].info->inf, sizeof(char), info_len, ptab->fd);// информация
+            fseek(ptab->fd, tmp_offset, SEEK_SET);
+            fwrite(&key2_offset, sizeof(long int), 1, ptab->fd);// смещение в файле ключа 2
+            fwrite(&key2_len, sizeof(int), 1, ptab->fd); // длина второго ключа
+            tmp_offset = ftell(ptab->fd);
+            fseek(ptab->fd, 0, SEEK_END);
+            info_offset = ftell(ptab->fd);
+            info_len=strlen(ptab->ks1[i].info->key2)+1;
+            fwrite(&ptab->ks1[i].info->inf, sizeof(char), info_len, ptab->fd); //второй ключ
+            fseek(ptab->fd, tmp_offset, SEEK_SET);
+            fwrite(&info_offset, sizeof(long int), 1, ptab->fd);// смещение в файле ключа 2
+            fwrite(&info_len, sizeof(int), 1, ptab->fd);
+            tmp_offset = ftell(ptab->fd);
         }
     }
     return 0;
