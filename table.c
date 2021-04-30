@@ -45,9 +45,11 @@ void *Get_Old_Table(Table *table) {
         fread(&par,sizeof(int),1,table->fd);
         fread(&realise,sizeof(int),1,table->fd);
         fread(&len_k2,sizeof(int),1,table->fd);
-        fread(k2,sizeof(char*),len_k2,table->fd);
+        k2= calloc(len_k2+1,sizeof(char));
+        fread(k2,sizeof(char),len_k2,table->fd);
         fread(&len_info,sizeof(int),1,table->fd);
-        fread(info,sizeof(char*),len_info,table->fd);
+        info= calloc(len_info+1,sizeof(char));
+        fread(info,sizeof(char),len_info,table->fd);
         insert(table,k1,par,k2,info);
     }
     return 0;
@@ -65,10 +67,10 @@ void *load(Table *ptab){
             fwrite(&ptab->ks1[i].key, sizeof(int), 1, ptab->fd);// первый ключ
             fwrite(&ptab->ks1[i].par, sizeof(int), 1, ptab->fd);// родительский ключ
             fwrite(&ptab->ks1[i].info->realise, sizeof(int), 1, ptab->fd);// версию элемента
-            key2_len=strlen(ptab->ks1[i].info->key2)+1;
+            key2_len=strlen(ptab->ks1[i].info->key2);
             fwrite(&key2_len, sizeof(int), 1, ptab->fd);
             fwrite(ptab->ks1[i].info->key2, sizeof(char), key2_len, ptab->fd);
-            info_len=strlen(ptab->ks1[i].info->key2)+1;
+            info_len=strlen(ptab->ks1[i].info->key2);
             fwrite(&info_len, sizeof(int), 1, ptab->fd);
             fwrite(ptab->ks1[i].info->inf, sizeof(char), info_len, ptab->fd);
         }
