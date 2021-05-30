@@ -22,10 +22,10 @@ int main() {
     char *s = Get_Str();
     table.fd = fopen(s, "r+b");
     if (table.fd == NULL) { //нет файла с таблицей
+        table.fd = fopen(s, "w+b");
         Get_New_Table(&table);
     } else {// есть файл с таблицей
         Get_Old_Table(&table);
-        fclose( table.fd);
     }
     int rc;
     rc = dialog(msgs, NMgsgs);
@@ -35,16 +35,7 @@ int main() {
         }
         rc = dialog(msgs, NMgsgs);
     }
-    table.fd = fopen(s, "w+b");
-    load(&table);// обновление файла
+    delete_all(&table);
 
-    for (int i = 0; i < table.msize1; i++) {
-        if (table.ks1[i].key != 0) {
-            delete(&table, table.ks1[i].key, table.ks1[i].info->key2);
-        }
-    }
-    free(table.ks1);
-    free(table.ks2);
-    fclose(table.fd);
     return 0;
 }

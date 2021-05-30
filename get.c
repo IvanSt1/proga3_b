@@ -59,8 +59,11 @@ char *Get_Str() {
 
 char *Get_Strk2(Table *t) {
     char *res = NULL;
+    int strl;
     res = Get_Str();
-    while (strlen(res) > t->strl) {
+    fseek(t->fd,t->ind_str_l,SEEK_SET);
+    fread(&strl,sizeof (int),1,t->fd);
+    while (strlen(res) > strl) {
         printf("wrong length of string\n");
         res = Get_Str();
     }
@@ -69,9 +72,11 @@ char *Get_Strk2(Table *t) {
 
 
 int Hesh(Table *t, char *s) {
-    int sum = 0;
+    int sum = 0,strl;
+    fseek(t->fd,t->ind_str_l,SEEK_SET);
+    fread(&strl,sizeof (int),1,t->fd);
     for (int i = 0; i < strlen(s); i++) {
         sum += (int) s[i];
     }
-    return (sum % t->strl);
+    return (sum % strl);
 }

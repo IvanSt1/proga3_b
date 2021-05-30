@@ -7,116 +7,110 @@
 #include <stdio.h>
 
 void *Get_New_Table(Table *table) {
-    int size1, size2, len;
+    int size1, size2, len, c_size1, k = 0;
     printf("Enter max size of ks1 table\n");
     Get_Int(&size1);
     printf("Enter max size of ks2 table\n");
     Get_Int(&size2);
     printf("Length of key2\n");
     Get_Int(&len);
-    table->ks1 = calloc(sizeof(KeySpace1), size1);
+    c_size1 = 0;
+    table->ks1 = (KeySpace1 *) calloc(sizeof(KeySpace1), size1);
     table->ks2 = (KeySpace2 **) calloc(sizeof(KeySpace2 *), size2);
-    table->msize1 = size1;
-    table->csize1 = 0;
-    table->msize2 = size2;
-    table->strl = len;
-    for (int i = 0; i < size1; i++) {
-        table->ks1[i].key = 0;
-    }
+    fseek(table->fd, 0, SEEK_SET);
+
+    table->ind_max_size1 = 0;
+    fwrite(&size1, sizeof(int), 1, table->fd);// макс размер первого
+
+    table->ind_cur_size1 = ftell(table->fd);
+    fwrite(&c_size1, sizeof(int), 1, table->fd);//реальный размер первого
+
+    table->ind_max_size2 = ftell(table->fd);
+    fwrite(&size2, sizeof(int), 1, table->fd);// размер второго
+
+    table->number_of_items = ftell(table->fd); // кол-во всего элементов
+    fwrite(&c_size1, sizeof(int), 1, table->fd);
+
+    table->ind_str_l = ftell(table->fd);
+    fwrite(&len, sizeof(int), 1, table->fd);// макс длина строки второго
     return 0;
 }
 
 void *Get_Old_Table(Table *table) {
-    int size1, size2, len,csize,k1,par,realise,len_k2,len_info;
+    int size1, size2, len, csize, k1, par, realise, len_k2, len_info;
     char *k2, *info;
-    fseek(table->fd, 0, SEEK_SET);
-    fread(&size1,sizeof(int),1,table->fd);
-    fread(&csize,sizeof(int),1,table->fd);
-    fread(&size2,sizeof(int),1,table->fd);
-    fread(&len,sizeof(int),1,table->fd);
-    table->ks1 = calloc(sizeof(KeySpace1), size1);
-    table->ks2 = (KeySpace2 **) calloc(sizeof(KeySpace2 *), size2);
-    table->msize1 = size1;
-    table->csize1 = 0;
-    table->msize2 = size2;
-    table->strl = len;
-    for(int i=0; i<csize;i++){
-        fread(&k1,sizeof(int),1,table->fd);
-        fread(&par,sizeof(int),1,table->fd);
-        fread(&realise,sizeof(int),1,table->fd);
-        fread(&len_k2,sizeof(int),1,table->fd);
-        k2= calloc(len_k2+1,sizeof(char));
-        fread(k2,sizeof(char),len_k2,table->fd);
-        fread(&len_info,sizeof(int),1,table->fd);
-        info= calloc(len_info+1,sizeof(char));
-        fread(info,sizeof(char),len_info,table->fd);
-        insert(table,k1,par,k2,info);
-    }
-    return 0;
-}
-void *load(Table *ptab){
 
-    int key2_len,info_len;
-    fseek(ptab->fd, 0, SEEK_SET);
-    fwrite(&ptab->msize1,sizeof (int),1,ptab->fd); // макс размер первого
-    fwrite(&ptab->csize1,sizeof (int),1,ptab->fd); // реальный размер первого
-    fwrite(&ptab->msize2,sizeof (int),1,ptab->fd); // размер второго
-    fwrite(&ptab->strl,sizeof (int),1,ptab->fd);// макс длина строки второго
-    for(int i=0;i<ptab->msize1;i++){
-        if(ptab->ks1[i].key!=0) {
-            fwrite(&ptab->ks1[i].key, sizeof(int), 1, ptab->fd);// первый ключ
-            fwrite(&ptab->ks1[i].par, sizeof(int), 1, ptab->fd);// родительский ключ
-            fwrite(&ptab->ks1[i].info->realise, sizeof(int), 1, ptab->fd);// версию элемента
-            key2_len=strlen(ptab->ks1[i].info->key2);
-            fwrite(&key2_len, sizeof(int), 1, ptab->fd);
-            fwrite(ptab->ks1[i].info->key2, sizeof(char), key2_len, ptab->fd);
-            info_len=strlen(ptab->ks1[i].info->key2);
-            fwrite(&info_len, sizeof(int), 1, ptab->fd);
-            fwrite(ptab->ks1[i].info->inf, sizeof(char), info_len, ptab->fd);
-        }
-    }
     return 0;
 }
+
 Item *find(Table *t, int k1, char *k2) {
-    int i;
-    for (i = 0; i < t->msize1; i++) {
-        if (t->ks1[i].key != 0) {
-            if ((t->ks1[i].key == k1) && (strcmp(t->ks1[i].info->key2, k2) == 0)) {
+    int h, key1;
+    unsigned len;
+    char *key2;
+    h = Hesh(t, k2);
+    KeySpace2 *ptr = t->ks2[h];
+    KeySpace2 *x = NULL;
+    while (ptr != NULL) {
+
+        fseek(t->fd, ptr->info->ind_key1, SEEK_SET);
+        fread(&key1, sizeof(int), 1, t->fd);
+
+        fseek(t->fd, ptr->info->ind_key2, SEEK_SET);
+        fread(&len, sizeof(unsigned), 1, t->fd);
+        key2 = (char *) calloc(len, sizeof(char));
+        fread(key2, sizeof(char), len, t->fd);
+        if (key1 == k1 && strcmp(key2, k2) == 0) {
+            x = ptr;
+        }
+        free(key2);
+        ptr = ptr->next;
+    }
+    if (x != NULL) {
+        return x->info;
+    } else {
+        return NULL;
+    }
+}
+
+Item *findk1(Table *t, int k1) {
+    int size, key1, i;
+    fseek(t->fd, t->ind_max_size1, SEEK_SET);
+    fread(&size, sizeof(int), 1, t->fd);
+    for (i = 0; i < size; i++) {
+        if (t->ks1[i].ind_key != 0) {
+            fseek(t->fd, t->ks1[i].ind_key, SEEK_SET);
+            fread(&key1, sizeof(int), 1, t->fd);
+            if (key1 == k1) {
                 break;
             }
         }
     }
-
-    if (i == t->msize1)
+    if (i == size)
         return NULL;
     else
         return t->ks1[i].info;
 }
 
-Item *findk1(Table *t, int k1) {
-    int i = 0;
-    while ((i < t->msize1) && (t->ks1[i].key != k1)) {
-        i++;
-    }
-    if (i == t->msize1)
-        return NULL;
-    else
-        return t->ks1[i].info;
-}
 
 KeySpace1 *findkpar(Table *t, int kpar, int *kol) {
     KeySpace1 *ks1;
     *kol = 0;
     ks1 = (KeySpace1 *) calloc(sizeof(KeySpace1), (*kol + 1));
-    for (int i = 0; i < t->msize1; i++) {
-        if (t->ks1[i].key != 0) {
-            if (t->ks1[i].par == kpar) {
+    int size, key1, i;
+    fseek(t->fd, t->ind_max_size1, SEEK_SET);
+    fread(&size, sizeof(int), 1, t->fd);
+    for (i = 0; i < size; i++) {
+        if (t->ks1[i].ind_key != 0) {
+            fseek(t->fd, t->ks1[i].ind_par, SEEK_SET);
+            fread(&key1, sizeof(int), 1, t->fd);
+            if (key1 == kpar) {
                 ks1 = realloc(ks1, sizeof(KeySpace1) * (*kol + 1));
                 ks1[*kol] = t->ks1[i];
                 (*kol)++;
             }
         }
     }
+
     if (*kol == 0) {
         free(ks1);
         return NULL;
@@ -124,57 +118,243 @@ KeySpace1 *findkpar(Table *t, int kpar, int *kol) {
         return ks1;
 }
 
+KeySpace2 *findk2(Table *t, char *k2) {
+    KeySpace2 *res = NULL;
+    KeySpace2 *ptr;
+    char *key2;
+    int h, len;
+    h = Hesh(t, k2);
+    ptr = t->ks2[h];
+    while (ptr != NULL) {
+        fseek(t->fd, ptr->ind_key, SEEK_SET);
+        fread(&len, sizeof(unsigned), 1, t->fd);
+        key2 = (char *) calloc(len, sizeof(char));
+        fread(key2, sizeof(char), len, t->fd);
+        if (strcmp(key2, k2) == 0) {
+            res = ptr;
+            free(key2);
+            break;
+        }
+        free(key2);
+        ptr = ptr->next;
+    }
+    return res;
+}
+
+KeySpace2 *findk2_realises(Table *t, char *k2,int* kol) {
+    KeySpace2 *res =(KeySpace2*) calloc(1, sizeof(KeySpace2));
+    KeySpace2 *ptr;
+    char *key2;
+    int h, len;
+    h = Hesh(t, k2);
+    ptr = t->ks2[h];
+    while (ptr != NULL) {
+        fseek(t->fd, ptr->ind_key, SEEK_SET);
+        fread(&len, sizeof(unsigned), 1, t->fd);
+        key2 = (char *) calloc(len, sizeof(char));
+        fread(key2, sizeof(char), len, t->fd);
+        if (strcmp(key2, k2) == 0) {
+            res = realloc(res, sizeof(KeySpace2) * (*kol + 1));
+            res[*kol] = *ptr;
+            (*kol)++;
+            free(key2);
+        }
+        else {
+            free(key2);
+        }
+        ptr = ptr->next;
+    }
+    if (*kol == 0) {
+        free(res);
+        return NULL;
+    } else
+        return res;
+}
 
 int insert(Table *t, int k1, int par, char *k2, char *information) {
-    int h;
-    if (findk1(t, k1) != NULL) return 1;
-    else {
-        if (t->msize1 == t->csize1) return 2;
-        else {
-            if ((findk1(t, par) == NULL) && (par != 0)) return 3;
-            else {
-                KeySpace2 *newks2 = calloc(sizeof(KeySpace2), 1);
-                Item *item = malloc(sizeof(Item));
-                item->key1 = k1;
-                item->key2 = k2;
-                item->inf = information;
-                h = Hesh(t, k2);
-                if (t->ks2[h] == NULL) {
+    int h, msize1, csize1, rel, key, n;
+    unsigned len_k2, len_inf;
 
-                    item->realise = 0;
-                    newks2->realise = 0;
-                    newks2->key = k2;
-                    newks2->next = NULL;
-                    newks2->previous = NULL;
-                    newks2->info = item;
-                    item->ks2 = newks2;
-                    t->ks2[h] = newks2;
+    fseek(t->fd, t->ind_max_size1, SEEK_SET);
+    fread(&msize1, sizeof(int), 1, t->fd);
+
+    fseek(t->fd, t->ind_cur_size1, SEEK_SET);
+    fread(&csize1, sizeof(int), 1, t->fd);
+
+    Item *y = findk1(t, k1);
+    Item *x = find(t, k1, k2);
+    if (y == NULL) {
+        if (msize1 == csize1) return 2; // если нет элемента с составным таким же ключом и вся таблица забита
+    }
+    if (x == NULL && y != NULL) {
+        return 1; // есть элемент с таким же 1 кдючом но не составным
+    } else {
+        if ((findk1(t, par) == NULL) && (par != 0)) return 3;
+        else {
+            KeySpace2 *newks2 = calloc(sizeof(KeySpace2), 1);
+            Item *item = malloc(sizeof(Item));
+
+            fseek(t->fd, 0, SEEK_END); // нашли конец
+
+            item->ind_key1 = ftell(t->fd);
+            fwrite(&k1, sizeof(int), 1, t->fd); // отступ для первого ключа
+
+            len_k2 = strlen(k2);
+            item->ind_key2 = ftell(t->fd);
+            fwrite(&len_k2, sizeof(unsigned), 1, t->fd); // длина второй ключа
+            fwrite(k2, sizeof(char), len_k2, t->fd); // второй ключ
+
+            len_inf = strlen(information);
+            item->ind_inf = ftell(t->fd);
+            fwrite(&len_inf, sizeof(unsigned), 1, t->fd); // длина информации
+            fwrite(information, sizeof(char), len_inf, t->fd); // информация
+
+            h = Hesh(t, k2);
+            if (t->ks2[h] == NULL) {
+                rel = 0;
+                fseek(t->fd, 0, SEEK_END);// нашли конец после хеша
+
+                newks2->ind_realise = ftell(t->fd);
+                fwrite(&rel, sizeof(int), 1, t->fd); // релиз во второй пространстве ключей
+
+
+                newks2->ind_key = item->ind_key2;
+
+                newks2->next = NULL;
+                newks2->previous = NULL;
+                newks2->info = item;
+                item->ks2 = newks2;
+                t->ks2[h] = newks2;
+
+            } else {
+                newks2->previous = NULL;
+                KeySpace2 *z = findk2(t, k2);
+                if (z == NULL) {
+                    rel = 0;
                 } else {
-                    newks2->key = k2;
-                    newks2->previous = NULL;
-                    newks2->realise = t->ks2[h]->realise + 1;
-                    item->realise = t->ks2[h]->realise + 1;
-                    newks2->info = item;
-                    t->ks2[h]->previous = newks2;
-                    newks2->next = t->ks2[h];
-                    t->ks2[h] = newks2;
-                    item->ks2 = newks2;
+                    fseek(t->fd, z->ind_realise, SEEK_SET);
+                    fread(&rel, sizeof(int), 1, t->fd);
+                    rel++;
                 }
-                for (int i = 0; i < t->msize1; i++) {
-                    if (t->ks1[i].key == 0) {
-                        t->ks1[i].key = k1;
-                        t->ks1[i].par = par;
+
+                fseek(t->fd, 0, SEEK_END);
+                newks2->ind_realise = ftell(t->fd);
+                fwrite(&rel, sizeof(int), 1, t->fd);
+
+                newks2->info = item;
+                item->ks2 = newks2;
+                newks2->ind_key = item->ind_key2;
+                t->ks2[h]->previous = newks2;
+                newks2->next = t->ks2[h];
+                t->ks2[h] = newks2;
+
+
+            }
+            if (x != NULL) {
+                while (x->next != NULL) {
+                    x = x->next;
+                }
+                fseek(t->fd, x->ind_realise, SEEK_SET);
+                fread(&rel, sizeof(int), 1, t->fd);
+                rel++;
+                fseek(t->fd, 0, SEEK_END);
+                item->ind_realise = ftell(t->fd);
+                fwrite(&rel, sizeof(int), 1, t->fd);
+                x->next = item;
+            } else {
+                for (int i = 0; i < msize1; i++) {
+
+                    if (t->ks1[i].info == NULL) {
+                        fseek(t->fd, 0, SEEK_END);
+                        rel = 0;
+                        item->ind_realise = ftell(t->fd);
+                        fwrite(&rel, sizeof(int), 1, t->fd);
+                        t->ks1[i].ind_par = ftell(t->fd);
+                        fwrite(&par, sizeof(int), 1, t->fd);
+                        fwrite(&i, sizeof(int), 1, t->fd);
                         t->ks1[i].info = item;
+                        t->ks1[i].ind_key = item->ind_key1;
                         break;
                     }
                 }
-                t->csize1++;
-                return 0;
+                csize1++;
+                fseek(t->fd, t->ind_cur_size1, SEEK_SET);
+                fwrite(&csize1, sizeof(int), 1, t->fd);
             }
+            fseek(t->fd, t->number_of_items, SEEK_SET);
+            fread(&n, sizeof(int), 1, t->fd);
+            n++;
+            fseek(t->fd, t->number_of_items, SEEK_SET);
+            fwrite(&n, sizeof(int), 1, t->fd);
+            return 0;
         }
     }
 }
 
+void show(Table *t) {
+    int size, i;
+    Item *x;
+    fseek(t->fd, t->ind_max_size1, SEEK_SET);
+    fread(&size, sizeof(int), 1, t->fd);
+    for (i = 0; i < size; i++) {
+        x = t->ks1[i].info;
+        show_elements(t, x);
+    }
+}
+
+void show_elements(Table *t, Item *x) {
+    int key1, rel, rel_ks2, par, k = 0;
+    unsigned len_key2, len_info;
+    char *inf = NULL, *key2 = NULL;
+    while (x != NULL) {
+        fseek(t->fd, x->ind_key1, SEEK_SET);
+        fread(&key1, sizeof(int), 1, t->fd);
+        fread(&len_key2, sizeof(unsigned), 1, t->fd);
+        key2 = (char *) calloc(len_key2, sizeof(char));
+        fread(key2, sizeof(char), len_key2, t->fd);
+        fread(&len_info, sizeof(unsigned), 1, t->fd);
+        inf = (char *) calloc(len_info, sizeof(char));
+        fread(inf, sizeof(char), len_info, t->fd);
+        fread(&rel_ks2, sizeof(int), 1, t->fd);
+        fread(&rel, sizeof(int), 1, t->fd);
+        if (k == 0) {
+            fread(&par, sizeof(int), 1, t->fd);
+            printf("Item key1: %d | par: %d | key2: %s | info: %s  | rel: %d | rel in ks2 %d\n", key1, par,
+                   key2, inf, rel, rel_ks2);
+        } else {
+            printf("Item key1: %d | key2: %s | info: %s | rel: %d | rel in ks2 %d\n", key1, key2,
+                   inf, rel, rel_ks2);
+        }
+        x = x->next;
+        free(key2);
+        free(inf);
+        k++;
+    }
+}
+
+void show_element(Table *t, Item *x) {
+    int key1, rel, rel_ks2, par;
+    unsigned len_key2, len_info;
+    char *inf = NULL, *key2 = NULL;
+    fseek(t->fd, x->ind_key1, SEEK_SET);
+    fread(&key1, sizeof(int), 1, t->fd);
+    fread(&len_key2, sizeof(unsigned), 1, t->fd);
+    key2 = (char *) calloc(len_key2, sizeof(char));
+    fread(key2, sizeof(char), len_key2, t->fd);
+    fread(&len_info, sizeof(unsigned), 1, t->fd);
+    inf = (char *) calloc(len_info, sizeof(char));
+    fread(inf, sizeof(char), len_info, t->fd);
+    fread(&rel_ks2, sizeof(int), 1, t->fd);
+    fread(&rel, sizeof(int), 1, t->fd);
+    printf("Item key1: %d | key2: %s | info: %s | rel: %d | rel in ks2 %d\n", key1, key2,
+           inf, rel, rel_ks2);
+
+    free(key2);
+    free(inf);
+
+}
+
+/*
 int delete(Table *t, int k1, char *k2) {
     int i = 0;
     // нахождение по первому пространству элемент который нужно удалить
@@ -233,4 +413,11 @@ int delete(Table *t, int k1, char *k2) {
     free(del_ks2);
     return 1;
 
+}
+ */
+
+void delete_all(Table *table) {
+    free(table->ks1);
+    free(table->ks2);
+    fclose(table->fd);
 }

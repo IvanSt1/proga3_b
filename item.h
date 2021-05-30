@@ -5,21 +5,22 @@
 #ifndef PROGA3_B_ITEM_H
 #define PROGA3_B_ITEM_H
 typedef struct Item {
-    char *inf;
-    int key1;
-    char *key2;
-    int realise;
+    long int ind_inf; // сначала длина потом строка
+    long int ind_key1;
+    long int  ind_key2; // сначала длина потом строка
+    long int ind_realise;
+    struct Item* next;
     struct KeySpace2 *ks2;
 } Item;
 typedef struct KeySpace1 {
-    int key;
-    int par;
+    long int ind_key;
+    long int ind_par;
     Item *info;
 } KeySpace1;
 typedef struct KeySpace2 {
-    char *key;
+    long int ind_key;
     Item *info;
-    int realise;
+    long int ind_realise;
     struct KeySpace2 *next;
     struct KeySpace2 *previous;
 } KeySpace2;
